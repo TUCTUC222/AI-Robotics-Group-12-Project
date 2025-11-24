@@ -74,12 +74,12 @@ python3 view_camera.py
 The robot makes decisions 20 times per second (20Hz) based on this hierarchy:
 
 1.  **EMERGENCY STOP**: If *any* object is < 0.30m → STOP immediately (collision avoidance).
-2.  **EDGES CLIPPED**: If target edges are within 2px of frame border → BACK UP at -0.12 m/s.
-3.  **TARGET TOO FAR**: If target fills < 20% of FOV → APPROACH FAST at 0.20 m/s.
-4.  **TARGET SAFE & SMALL**: If edges safe (>15px from border) AND fills < 60% FOV → APPROACH SLOW at 0.08 m/s.
+2.  **EDGES CLIPPED**: If target edges are within 2px of frame border → BACK UP at -0.20 m/s.
+3.  **TARGET TOO FAR**: If target fills < 20% of FOV → APPROACH FAST at 0.30 m/s.
+4.  **TARGET SAFE & SMALL**: If edges safe (>15px from border) AND fills < 60% FOV → APPROACH MEDIUM at 0.15 m/s.
 5.  **TARGET SAFE & LARGE**: If edges safe AND fills ≥ 60% FOV → HOLD POSITION (stabilize).
 6.  **EDGES IN DANGER ZONE**: If edges between 2-15px from border → HOLD POSITION (prevent oscillation).
-7.  **TARGET OFF-CENTER**: If target not centered → TURN with proportional control + size-based damping.
+7.  **TARGET OFF-CENTER**: If target not centered → TURN + APPROACH MEDIUM at 0.15 m/s with proportional control + size-based damping.
 8.  **NO TARGET**: If nothing detected → SEARCH by rotating at 0.4 rad/s.
 
 **Turn Control:**
@@ -112,28 +112,34 @@ The robot makes decisions 20 times per second (20Hz) based on this hierarchy:
     - Edge visibility status (safe, danger zone, or clipped)
 
 ### Modern HUD Camera Viewer
-The `view_camera.py` script displays real-time telemetry with a sci-fi inspired interface:
+The `view_camera.py` script displays real-time telemetry with a user-friendly interface designed for non-technical users:
 
 **Features:**
-- **System Info Panel** (top-left):
-  - Resolution, FPS, FOV
-  - Camera status
-- **Robot Status Panel** (middle-left):
-  - Current action (e.g., "APPROACHING: OPTIMIZING DISTANCE")
-  - Linear velocity (m/s)
-  - Angular velocity (rad/s)
-- **Target Data Panel** (bottom-left):
-  - Distance to target (meters)
-  - Target size (% of frame)
-  - Detection status
-- **Center Crosshair**: Helps visualize target centering
-- **Target Bounding Box**: Shows detected target with corner brackets
+- **"What is the Robot Doing?" Panel** (top):
+  - Simple status icons: MOVING, REACHED, SEARCHING, BACKING UP, IDLE
+  - Plain English explanations (e.g., "Getting closer to target", "Too close! Stopping.")
+  - Visual speed bar showing movement intensity
+  - Color-coded status (Green=Good, Cyan=Moving, Orange=Searching, Red=Warning, Magenta=Backing)
+  
+- **Target Information Panel** (bottom):
+  - "TARGET FOUND" or "NO TARGET DETECTED" status
+  - Distance to target in meters
+  - Size in view (% of frame coverage)
+  - Alignment status with visual indicators:
+    - Arrows showing turn direction when off-center
+    - Circle indicator [OK] when centered
+  
+- **Visual Elements**:
+  - Center crosshair for alignment reference
+  - Target bounding box with corner brackets
+  - Frame corner accents for modern look
 
 **Design:**
 - Dark semi-transparent panels for readability
-- Cyan theme matching target color
-- Consistent 0.4-scale text throughout
-- Left-side consolidated layout
+- Color-coded status for quick understanding
+- No technical jargon - friendly for all users
+- Visual indicators (bars, arrows, shapes) instead of complex numbers
+- Left-side consolidated layout keeps view unobstructed
 
 ---
 

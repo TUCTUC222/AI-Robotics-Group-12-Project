@@ -21,9 +21,10 @@ This project demonstrates autonomous target tracking using:
 - ✅ **Color-Based Detection**: Uses HSV color space to identify cyan targets
 - ✅ **Sensor Fusion**: Combines camera vision with LIDAR distance data
 - ✅ **Edge-Based Distance Control**: Intelligent approach system that maximizes proximity while keeping target fully in frame
+- ✅ **Fast & Responsive**: Optimized speeds (up to 0.30 m/s approach) for quick target acquisition
 - ✅ **Dynamic Tracking**: Actively follows moving targets with real-time centering
 - ✅ **Search Behavior**: Automatically scans environment when target lost
-- ✅ **Modern HUD**: Real-time telemetry display with velocity, distance, and status information
+- ✅ **User-Friendly HUD**: Plain English status updates with visual indicators - no technical jargon!
 - ✅ **Stable Positioning**: Two-tier safety margin system prevents oscillation
 
 ## 🚀 Quick Start
@@ -138,12 +139,12 @@ This prevents the oscillation problem of percentage-based systems while maximizi
 
 **Control Logic (Priority System):**
 1. **Priority 1**: Emergency (object <30cm) → EMERGENCY STOP
-2. **Priority 2**: Target edges clipped → BACK UP (-0.12 m/s)
-3. **Priority 3**: Target too small (<20% FOV) → APPROACH FAST (0.20 m/s)
-4. **Priority 4**: Target edges safe + small (<60% FOV) → APPROACH SLOW (0.08 m/s)
+2. **Priority 2**: Target edges clipped → BACK UP (-0.20 m/s)
+3. **Priority 3**: Target too small (<20% FOV) → APPROACH FAST (0.30 m/s)
+4. **Priority 4**: Target edges safe + small (<60% FOV) → APPROACH MEDIUM (0.15 m/s)
 5. **Priority 5**: Target edges safe + large (≥60% FOV) → HOLD POSITION
 6. **Priority 6**: Target edges in danger zone → HOLD POSITION
-7. **Priority 7**: Target off-center → TURN + APPROACH SLOW
+7. **Priority 7**: Target off-center → TURN + APPROACH MEDIUM (0.15 m/s)
 8. **Priority 8**: No target → SEARCH (rotate 0.4 rad/s)
 
 **Sensors:**
@@ -161,21 +162,23 @@ This prevents the oscillation problem of percentage-based systems while maximizi
 | **Target Detection** | HSV color filtering (Cyan: H=80-100) |
 | **Edge Detection** | 15px safety margin, 2px clip margin |
 | **Distance Control** | Edge-based approach with stability zones |
-| **Approach Speed** | Fast: 0.20 m/s, Slow: 0.08 m/s, Backup: -0.12 m/s |
+| **Approach Speed** | Fast: 0.30 m/s, Medium: 0.15 m/s, Backup: -0.20 m/s |
 | **Turn Control** | Proportional with size-based damping |
 | **Emergency Stop** | <0.30m distance threshold |
 
 ## 🎮 Interactive Commands
 
-**View the camera feed with target detection:**
+**View the camera feed with user-friendly HUD:**
 ```bash
 python3 view_camera.py
 ```
-Shows live camera view with:
-- Target detection highlights
-- Center crosshair
-- Offset and direction indicators
-- Cyan detection mask
+Shows live camera view with modern interface:
+- **Robot Status**: What the robot is doing in plain English (e.g., "Getting closer to target")
+- **Visual Speed Bar**: Shows movement intensity at a glance
+- **Target Info**: Distance, size, and alignment status
+- **Visual Indicators**: Arrows for turn direction, circle for centered [OK]
+- **Color-Coded Status**: Green (good), Cyan (moving), Orange (searching), Red (warning)
+- **Dual Windows**: Main camera view + cyan detection mask
 
 **Monitor LIDAR data:**
 ```bash
