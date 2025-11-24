@@ -199,9 +199,9 @@
           </box>
         </geometry>
         <material>
-          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
-          <diffuse>0 1 1 0.7</diffuse>
-          <emissive>0 0.8 0.8 1</emissive>
+          <ambient>1 1 0 0.7</ambient>  <!-- Yellow (won't be detected as cyan) -->
+          <diffuse>1 1 0 0.7</diffuse>
+          <emissive>1 1 0 1</emissive>
         </material>
       </visual>
       
@@ -213,9 +213,9 @@
           </box>
         </geometry>
         <material>
-          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
-          <diffuse>0 1 1 0.7</diffuse>
-          <emissive>0 0.8 0.8 1</emissive>
+          <ambient>1 1 0 0.7</ambient>  <!-- Yellow (won't be detected as cyan) -->
+          <diffuse>1 1 0 0.7</diffuse>
+          <emissive>1 1 0 1</emissive>
         </material>
       </visual>
       
@@ -227,9 +227,9 @@
           </box>
         </geometry>
         <material>
-          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
-          <diffuse>0 1 1 0.7</diffuse>
-          <emissive>0 0.8 0.8 1</emissive>
+          <ambient>1 1 0 0.7</ambient>  <!-- Yellow (won't be detected as cyan) -->
+          <diffuse>1 1 0 0.7</diffuse>
+          <emissive>1 1 0 1</emissive>
         </material>
       </visual>
       
@@ -241,9 +241,9 @@
           </box>
         </geometry>
         <material>
-          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
-          <diffuse>0 1 1 0.7</diffuse>
-          <emissive>0 0.8 0.8 1</emissive>
+          <ambient>1 1 0 0.7</ambient>  <!-- Yellow (won't be detected as cyan) -->
+          <diffuse>1 1 0 0.7</diffuse>
+          <emissive>1 1 0 1</emissive>
         </material>
       </visual>
 
