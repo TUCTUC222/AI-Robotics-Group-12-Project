@@ -35,7 +35,8 @@ ros2 launch lidar_target_follower obstacle_course.launch.py
 
 **3. Interact**
 *   **Move the Target**: In Gazebo, use the "Translate" tool to drag the cyan cylinder. The robot will follow.
-*   **View Camera**: Run `rqt_image_view` in a new terminal to see what the robot sees.
+*   **View Camera Feed**: Run `python3 view_camera.py` in a new terminal to see what the robot sees with target detection overlays.
+*   **FOV Visualization**: The robot shows cyan glowing lines in Gazebo representing the camera's 60° field of view cone.
 
 ---
 

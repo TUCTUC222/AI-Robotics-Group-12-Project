@@ -62,10 +62,18 @@ ros2 launch lidar_target_follower obstacle_course.launch.py
 
 **What happens:**
 1. Gazebo opens with the TurtleBot3 and a cyan target cylinder
-2. Robot's camera detects the cyan color
-3. Robot turns to center the target in its view
-4. Robot approaches and stops at ~30cm distance
-5. Try moving the target - the robot will follow it!
+2. Robot displays cyan glowing lines showing its 60° camera field of view
+3. Robot's camera detects the cyan color
+4. Robot turns to center the target in its view
+5. Robot approaches and stops at ~30cm distance
+6. Try moving the target - the robot will follow it!
+
+**View What the Robot Sees:**
+```bash
+# In a new terminal
+python3 view_camera.py
+```
+This opens a window showing the camera feed with target detection overlays!
 
 ## 📂 Project Structure
 
@@ -130,10 +138,15 @@ AI-Robotics-Group-12-Project/
 
 ## 🎮 Interactive Commands
 
-**View the camera feed:**
+**View the camera feed with target detection:**
 ```bash
-rqt_image_view /camera
+python3 view_camera.py
 ```
+Shows live camera view with:
+- Target detection highlights
+- Center crosshair
+- Offset and direction indicators
+- Cyan detection mask
 
 **Monitor LIDAR data:**
 ```bash

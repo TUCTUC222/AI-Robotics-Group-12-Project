@@ -190,6 +190,63 @@
         </material>
       </visual>
 
+      <!-- Camera Field of View Cone Visualization -->
+      <visual name="camera_fov_left">
+        <pose>0.3 0 0.084 0 -0.523599 0</pose>  <!-- 30 degrees down, left edge -->
+        <geometry>
+          <box>
+            <size>0.6 0.002 0.002</size>  <!-- Thin line -->
+          </box>
+        </geometry>
+        <material>
+          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
+          <diffuse>0 1 1 0.7</diffuse>
+          <emissive>0 0.8 0.8 1</emissive>
+        </material>
+      </visual>
+      
+      <visual name="camera_fov_right">
+        <pose>0.3 0 0.084 0 0.523599 0</pose>  <!-- 30 degrees up, right edge -->
+        <geometry>
+          <box>
+            <size>0.6 0.002 0.002</size>  <!-- Thin line -->
+          </box>
+        </geometry>
+        <material>
+          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
+          <diffuse>0 1 1 0.7</diffuse>
+          <emissive>0 0.8 0.8 1</emissive>
+        </material>
+      </visual>
+      
+      <visual name="camera_fov_top">
+        <pose>0.3 0 0.084 0.523599 0 0</pose>  <!-- 30 degrees, top edge -->
+        <geometry>
+          <box>
+            <size>0.6 0.002 0.002</size>  <!-- Thin line -->
+          </box>
+        </geometry>
+        <material>
+          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
+          <diffuse>0 1 1 0.7</diffuse>
+          <emissive>0 0.8 0.8 1</emissive>
+        </material>
+      </visual>
+      
+      <visual name="camera_fov_bottom">
+        <pose>0.3 0 0.084 -0.523599 0 0</pose>  <!-- 30 degrees, bottom edge -->
+        <geometry>
+          <box>
+            <size>0.6 0.002 0.002</size>  <!-- Thin line -->
+          </box>
+        </geometry>
+        <material>
+          <ambient>0 1 1 0.7</ambient>  <!-- Bright cyan -->
+          <diffuse>0 1 1 0.7</diffuse>
+          <emissive>0 0.8 0.8 1</emissive>
+        </material>
+      </visual>
+
       <sensor name="camera" type="camera">
         <always_on>true</always_on>
         <visualize>true</visualize>

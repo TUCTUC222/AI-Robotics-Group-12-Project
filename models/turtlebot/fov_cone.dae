@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <created>2025-11-24T00:00:00</created>
+    <modified>2025-11-24T00:00:00</modified>
+  </asset>
+  <library_geometries>
+    <geometry id="fov_cone-mesh" name="fov_cone">
+      <mesh>
+        <source id="fov_cone-mesh-positions">
+          <float_array id="fov_cone-mesh-positions-array" count="15">
+            0 0 0
+            0.5 0.29 0.22
+            0.5 0.29 -0.22
+            0.5 -0.29 -0.22
+            0.5 -0.29 0.22
+          </float_array>
+          <technique_common>
+            <accessor source="#fov_cone-mesh-positions-array" count="5" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="fov_cone-mesh-vertices">
+          <input semantic="POSITION" source="#fov_cone-mesh-positions"/>
+        </vertices>
+        <lines material="fov_lines">
+          <input semantic="VERTEX" source="#fov_cone-mesh-vertices" offset="0"/>
+          <p>0 1  0 2  0 3  0 4  1 2  2 3  3 4  4 1</p>
+        </lines>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="fov_cone" name="fov_cone" type="NODE">
+        <instance_geometry url="#fov_cone-mesh"/>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>
