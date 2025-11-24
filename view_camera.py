@@ -177,7 +177,10 @@ class CameraViewer(Node):
             elif "APPROACHING" in self.robot_status or "ALIGNING" in self.robot_status:
                 status_color = (0, 255, 255)  # Cyan
                 status_icon = "MOVING"
-            elif "SEARCHING" in self.robot_status:
+            elif "AVOIDING" in self.robot_status:
+                status_color = (0, 165, 255)  # Orange
+                status_icon = "AVOIDING"
+            elif "SEARCH" in self.robot_status:
                 status_color = (0, 165, 255)  # Orange
                 status_icon = "SEARCHING"
             elif "TRACKING" in self.robot_status:
@@ -204,7 +207,13 @@ class CameraViewer(Node):
                 explanation = "Getting closer to target."
             elif "ALIGNING" in self.robot_status:
                 explanation = "Turning to face target."
-            elif "SEARCHING" in self.robot_status:
+            elif "AVOIDING" in self.robot_status:
+                explanation = "Going around obstacle."
+            elif "SEARCH: TURNING" in self.robot_status:
+                explanation = "Turning to last known pos."
+            elif "SEARCH: MOVING" in self.robot_status:
+                explanation = "Checking last location."
+            elif "SEARCH" in self.robot_status:
                 explanation = "Looking for target..."
             elif "TRACKING" in self.robot_status:
                 explanation = "Following target movement."

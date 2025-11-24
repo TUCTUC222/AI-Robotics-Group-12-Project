@@ -20,7 +20,8 @@ This project demonstrates autonomous target tracking using:
 
 - ✅ **Color-Based Detection**: Uses HSV color space to identify cyan targets
 - ✅ **Sensor Fusion**: Combines camera vision with LIDAR distance data
-- ✅ **Simple Obstacle Avoidance**: Stops before hitting obstacles - no complex pathfinding
+- ✅ **Bug2 Pathfinding**: Intelligent wall-following algorithm to navigate around obstacles blocking the target
+- ✅ **Vision-Assisted Navigation**: Camera stays oriented towards walls during obstacle avoidance
 - ✅ **Edge-Based Distance Control**: Intelligent approach system that maximizes proximity while keeping target fully in frame
 - ✅ **Fast & Responsive**: Optimized speeds (up to 0.30 m/s approach) for quick target acquisition
 - ✅ **Dynamic Tracking**: Actively follows moving targets with real-time centering

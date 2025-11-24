@@ -73,7 +73,8 @@ def generate_launch_description():
         arguments=[
             '/scan@sensor_msgs/msg/LaserScan@ignition.msgs.LaserScan',
             '/cmd_vel@geometry_msgs/msg/Twist@ignition.msgs.Twist',
-            '/camera@sensor_msgs/msg/Image@ignition.msgs.Image'
+            '/camera@sensor_msgs/msg/Image@ignition.msgs.Image',
+            '/odom@nav_msgs/msg/Odometry@ignition.msgs.Odometry'
         ],
         output='screen'
     )

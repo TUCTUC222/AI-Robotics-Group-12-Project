@@ -18,7 +18,15 @@ This robot operates like a simple autonomous creature:
     *   **If target edges clip**: Backs up to keep the full target visible.
     *   **If it loses the target**: Turns in place to search for it (3-phase search behavior).
 
-**Note:** The robot uses reactive obstacle avoidance - it stops before hitting things but doesn't navigate around obstacles to reach blocked targets.
+**Bug2 Wall Following:**
+When an obstacle blocks the path to the target, the robot uses the Bug2 algorithm:
+- **Detect Obstacle**: When the robot gets too close to an obstacle while searching for the target (<0.5m), it enters Bug2 mode
+- **Rotate to Wall**: Turns 60° (left or right, depending on which side has more space) to orient the camera towards the wall
+- **Follow Wall**: Moves forward while maintaining a fixed distance from the wall (0.4m) using LIDAR feedback
+- **Camera Bias**: Applies a rotational bias to keep the camera angled towards the wall for vision-assisted navigation
+- **Exit Condition**: When the target becomes visible again and the path is clear, returns to normal tracking mode
+
+This allows the robot to intelligently navigate around obstacles to reach targets that would otherwise be unreachable.
 
 **Smart Distance Control:**
 The robot uses a two-tier margin system to get as close as possible without the target leaving the camera frame:
@@ -73,23 +81,32 @@ python3 view_camera.py
 *   **Simulation**: Ignition Gazebo Fortress
 *   **Vision Library**: OpenCV 4.5.4 (via `cv_bridge`)
 
-### Control Logic (Priority System)
-The robot makes decisions 20 times per second (20Hz) based on this hierarchy:
+### Control Logic (Bug2 State Machine)
+The robot operates in different states based on what it perceives:
 
-1.  **OBSTACLE TOO CLOSE**: If *any* object is < 0.5m → STOP COMPLETELY (prevents collisions).
-2.  **EDGES CLIPPED**: If target edges are within 2px of frame border → BACK UP at -0.20 m/s.
-3.  **OBSTACLE AHEAD**: If object < 0.8m → SLOW DOWN to 0.05 m/s (cautious approach).
-4.  **TARGET TOO FAR**: If target fills < 20% of FOV → APPROACH FAST at 0.30 m/s.
-5.  **TARGET SAFE & SMALL**: If edges safe (>15px from border) AND fills < 60% FOV → APPROACH MEDIUM at 0.15 m/s.
-6.  **TARGET SAFE & LARGE**: If edges safe AND fills ≥ 60% FOV → HOLD POSITION (stabilize).
-7.  **EDGES IN DANGER ZONE**: If edges between 2-15px from border → HOLD POSITION (prevent oscillation).
-8.  **TARGET OFF-CENTER**: If target not centered → TURN + APPROACH MEDIUM at 0.15 m/s with proportional control + size-based damping.
-9.  **NO TARGET**: If nothing detected → SEARCH by rotating in place at 0.4 rad/s.
+**State 1: GO_TO_GOAL** (Normal Vision Tracking)
+1.  **OBSTACLE TOO CLOSE & TARGET VISIBLE**: If obstacle < 0.5m while tracking → SWITCH TO BUG2 MODE.
+2.  **OBSTACLE TOO CLOSE**: If *any* object is < 0.5m → STOP COMPLETELY (prevents collisions).
+3.  **EDGES CLIPPED**: If target edges are within 2px of frame border → BACK UP at -0.20 m/s.
+4.  **OBSTACLE AHEAD**: If object < 0.8m → SLOW DOWN to 0.05 m/s (cautious approach).
+5.  **TARGET TOO FAR**: If target fills < 20% of FOV → APPROACH FAST at 0.30 m/s.
+6.  **TARGET SAFE & SMALL**: If edges safe (>15px from border) AND fills < 60% FOV → APPROACH MEDIUM at 0.15 m/s.
+7.  **TARGET SAFE & LARGE**: If edges safe AND fills ≥ 60% FOV → HOLD POSITION (stabilize).
+8.  **EDGES IN DANGER ZONE**: If edges between 2-15px from border → HOLD POSITION (prevent oscillation).
+9.  **TARGET OFF-CENTER**: If target not centered → TURN + APPROACH MEDIUM at 0.15 m/s with proportional control.
+10. **NO TARGET & OBSTACLE AHEAD**: If searching and obstacle < 0.6m → SWITCH TO BUG2 MODE.
+11. **NO TARGET**: If nothing detected → SEARCH by rotating in place at 0.4 rad/s.
 
-**Obstacle Avoidance:**
-- **Danger Zone (<0.5m)**: Robot stops completely - won't move forward
-- **Caution Zone (0.5-0.8m)**: Robot slows to 0.05 m/s - very careful approach
-- **Clear Zone (>0.8m)**: Normal operation - approaches at full speed
+**State 2: ROTATE_TO_WALL** (Preparing for Wall Follow)
+- Robot rotates 60° (towards the side with more space) to face the wall
+- Uses odometry to track rotation progress
+- Transitions to WALL_FOLLOW when rotation complete
+
+**State 3: WALL_FOLLOW** (Navigating Around Obstacle)
+- Maintains 0.4m distance from wall using LIDAR feedback and P-controller
+- Applies rotational bias to keep camera angled towards wall
+- Detects corners and adjusts turn rate accordingly
+- **Exit Condition**: When target becomes visible AND path is clear (>0.8m) → Return to GO_TO_GOAL
 - **Reactive Only**: Robot stops before hitting obstacles but doesn't navigate around them (no pathfinding)
 
 **Turn Control:**
@@ -126,10 +143,10 @@ The `view_camera.py` script displays real-time telemetry with a user-friendly in
 
 **Features:**
 - **"What is the Robot Doing?" Panel** (top):
-  - Simple status icons: MOVING, REACHED, SEARCHING, BACKING UP, IDLE
-  - Plain English explanations (e.g., "Getting closer to target", "Too close! Stopping.")
+  - Simple status icons: MOVING, REACHED, SEARCHING, BACKING UP, NAVIGATING, IDLE
+  - Plain English explanations (e.g., "Getting closer to target", "Going around obstacle", "Too close! Stopping.")
   - Visual speed bar showing movement intensity
-  - Color-coded status (Green=Good, Cyan=Moving, Orange=Searching, Red=Warning, Magenta=Backing)
+  - Color-coded status (Green=Good, Cyan=Moving, Orange=Searching, Red=Warning, Magenta=Backing, Yellow=Navigating)
   
 - **Target Information Panel** (bottom):
   - "TARGET FOUND" or "NO TARGET DETECTED" status
@@ -160,9 +177,9 @@ The `view_camera.py` script displays real-time telemetry with a user-friendly in
 ```text
 AI-Robotics-Group-12-Project/
 ├── src/
-│   └── vision_target_follower_node.cpp  # Main C++ control node with edge-based distance control
+│   └── vision_target_follower_node.cpp  # Main C++ control node with Bug2 pathfinding
 ├── launch/
-│   └── obstacle_course.launch.py        # Launches Gazebo, Robot, and Nodes
+│   └── obstacle_course.launch.py        # Launches Gazebo, Robot, Nodes, and Odometry bridge
 ├── models/                              # SDF Models
 │   ├── turtlebot/                       # Robot with Camera + LIDAR
 │   └── cyan_target/                     # The target cylinder
