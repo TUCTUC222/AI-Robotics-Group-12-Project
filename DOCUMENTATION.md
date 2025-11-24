@@ -52,8 +52,7 @@ python3 view_camera.py
 
 **3. Interact**
 *   **Move the Target**: In Gazebo, use the "Translate" tool to drag the cyan cylinder. The robot will actively follow and maintain distance.
-*   **Camera Viewer**: Shows live feed with target detection, contours, crosshair, and tracking info.
-*   **FOV Visualization**: The robot displays yellow glowing lines in Gazebo showing the camera's 60° field of view cone.
+*   **Camera Viewer**: Shows live feed with modern HUD displaying target detection, contours, crosshair, and tracking info in plain English.
 
 ---
 
