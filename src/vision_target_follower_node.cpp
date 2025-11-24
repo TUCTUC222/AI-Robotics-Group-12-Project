@@ -244,7 +244,7 @@ private:
                 
                 if (target_edges_clipped_) {
                     // Edge is actually clipped - back up immediately!
-                    twist.linear.x = -0.12;
+                    twist.linear.x = -0.20;  // Faster backup
                     stable_counter_ = 0;
                     target_reached_ = false;
                     status_msg = "BACKING UP: EDGES CLIPPED";
@@ -252,16 +252,16 @@ private:
                         "⚠️ EDGES CLIPPED! Backing up to keep target visible!");
                 } else if (max_fov_coverage < MIN_FOV_COVERAGE) {
                     // Target too small - approach quickly
-                    twist.linear.x = 0.20;
+                    twist.linear.x = 0.30;  // Faster approach from far away
                     stable_counter_ = 0;
                     target_reached_ = false;
                     status_msg = "APPROACHING: TARGET FAR";
                     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
                         "➡️ TARGET TOO FAR! Approaching... (FOV: %.0f%%)", max_fov_coverage * 100);
                 } else if (target_edges_visible_) {
-                    // All edges are comfortably within safety margin (15px) - can approach slowly
+                    // All edges are comfortably within safety margin (15px) - can approach
                     if (max_fov_coverage < 0.60f) {
-                        twist.linear.x = 0.08;  // Slow careful approach
+                        twist.linear.x = 0.15;  // Medium speed careful approach
                         stable_counter_ = 0;
                         target_reached_ = false;
                         status_msg = "APPROACHING: OPTIMIZING DISTANCE";
@@ -313,8 +313,8 @@ private:
                         "⚠️ Near edge! Holding at %.0f%% FOV", max_fov_coverage * 100);
                 }
             } else {
-                // Target off-center - turn more, move slower
-                twist.linear.x = 0.08;
+                // Target off-center - turn while approaching
+                twist.linear.x = 0.15;  // Faster approach while turning
                 stable_counter_ = 0;  // Reset stability counter
                 target_reached_ = false;  // Reset target reached flag
                 status_msg = "ALIGNING: TURNING TO TARGET";

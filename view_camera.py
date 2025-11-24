@@ -22,12 +22,8 @@ class CameraViewer(Node):
         # Movement status tracking
         self.linear_vel = 0.0
         self.angular_vel = 0.0
-        self.is_moving = False
         self.target_distance = 0.0  # Distance to target in meters
         self.robot_status = "SYSTEM READY"  # Detailed status from robot
-        
-        # HUD effects
-        self.frame_count = 0
         
         # Subscribe to camera topic
         self.subscription = self.create_subscription(
@@ -65,7 +61,6 @@ class CameraViewer(Node):
     def vel_callback(self, msg):
         self.linear_vel = msg.linear.x
         self.angular_vel = msg.angular.z
-        self.is_moving = abs(msg.linear.x) > 0.01 or abs(msg.angular.z) > 0.01
 
     def status_callback(self, msg):
         self.robot_status = msg.data
@@ -97,8 +92,6 @@ class CameraViewer(Node):
     
     def image_callback(self, msg):
         try:
-            self.frame_count += 1
-            
             # Convert ROS Image to OpenCV format
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             
@@ -148,59 +141,77 @@ class CameraViewer(Node):
             cv2.line(display_image, (width - gap, height - gap), (width - gap - accent_len, height - gap), color, thickness)
             cv2.line(display_image, (width - gap, height - gap), (width - gap, height - gap - accent_len), color, thickness)
             
-            # ===== LEFT SIDE HUD - ALL INFO CONSOLIDATED =====
+            # ===== LEFT SIDE HUD - SIMPLIFIED FOR NON-TECHNICAL USERS =====
             left_margin = 15
             current_y = 15
             
-            # SYSTEM INFO PANEL
-            self.draw_hud_panel(display_image, left_margin, current_y, 250, 80, (0, 255, 255), "SYSTEM INFO")
-            cv2.putText(display_image, "FOV: 60 DEG", (left_margin + 10, current_y + 40), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-            cv2.putText(display_image, f"RES: {width}x{height}", (left_margin + 10, current_y + 60), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-            
-            current_y += 95
-            
-            # ROBOT STATUS PANEL
+            # WHAT IS THE ROBOT DOING? PANEL
             # Determine color based on status content
             if "EMERGENCY" in self.robot_status:
                 status_color = (0, 0, 255)  # Red
-            elif "STABILIZING" in self.robot_status or "HOLDING" in self.robot_status:
+                status_icon = "STOP"
+            elif "REACHED" in self.robot_status or "HOLDING" in self.robot_status:
                 status_color = (0, 255, 0)  # Green
+                status_icon = "REACHED"
+            elif "BACKING" in self.robot_status:
+                status_color = (255, 0, 255)  # Magenta
+                status_icon = "BACKING UP"
+            elif "APPROACHING" in self.robot_status or "ALIGNING" in self.robot_status:
+                status_color = (0, 255, 255)  # Cyan
+                status_icon = "MOVING"
             elif "SEARCHING" in self.robot_status:
-                status_color = (0, 165, 255) # Orange
+                status_color = (0, 165, 255)  # Orange
+                status_icon = "SEARCHING"
+            elif "TRACKING" in self.robot_status:
+                status_color = (0, 255, 255)  # Cyan
+                status_icon = "TRACKING"
             else:
-                status_color = (0, 255, 255)  # Cyan default
+                status_color = (100, 100, 100)  # Gray
+                status_icon = "IDLE"
             
-            self.draw_hud_panel(display_image, left_margin, current_y, 250, 100, status_color, "ROBOT STATUS")
+            self.draw_hud_panel(display_image, left_margin, current_y, 280, 115, status_color, "WHAT IS THE ROBOT DOING?")
             
-            # Status text - Split if too long
-            status_str = self.robot_status
-            if ":" in status_str:
-                parts = status_str.split(":")
-                main_status = parts[0].strip()
-                sub_status = parts[1].strip()
-                
-                cv2.putText(display_image, main_status, (left_margin + 10, current_y + 35), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, status_color, 1)
-                cv2.putText(display_image, sub_status, (left_margin + 10, current_y + 55), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
-                vel_y = current_y + 70
+            # Simple status icon
+            cv2.putText(display_image, status_icon, (left_margin + 10, current_y + 40), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, status_color, 2)
+            
+            # Simplified explanation
+            if "EMERGENCY" in self.robot_status:
+                explanation = "Too close! Stopping."
+            elif "REACHED" in self.robot_status or "HOLDING" in self.robot_status:
+                explanation = "At perfect distance."
+            elif "BACKING" in self.robot_status:
+                explanation = "Target too close."
+            elif "APPROACHING" in self.robot_status:
+                explanation = "Getting closer to target."
+            elif "ALIGNING" in self.robot_status:
+                explanation = "Turning to face target."
+            elif "SEARCHING" in self.robot_status:
+                explanation = "Looking for target..."
+            elif "TRACKING" in self.robot_status:
+                explanation = "Following target movement."
+            elif "STABILIZING" in self.robot_status:
+                explanation = "Holding position steady."
             else:
-                cv2.putText(display_image, status_str, (left_margin + 10, current_y + 40), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, status_color, 1)
-                vel_y = current_y + 60
+                explanation = "Ready to start."
             
-            # Speed display
-            linear_text = f"LIN: {abs(self.linear_vel):.2f} m/s"
-            cv2.putText(display_image, linear_text, (left_margin + 10, vel_y), 
+            cv2.putText(display_image, explanation, (left_margin + 10, current_y + 65), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+            
+            # Speed indicator with visual bar
+            speed_label = f"Speed: {abs(self.linear_vel):.2f} m/s"
+            cv2.putText(display_image, speed_label, (left_margin + 10, current_y + 88), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
-            angular_text = f"ANG: {abs(self.angular_vel):.2f} rad/s"
-            cv2.putText(display_image, angular_text, (left_margin + 10, vel_y + 18), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            # Visual speed bar
+            bar_width = int(min(abs(self.linear_vel) * 600, 180))  # Max 0.3 m/s = 180px
+            bar_color = (0, 255, 0) if self.linear_vel >= 0 else (0, 0, 255)
+            cv2.rectangle(display_image, (left_margin + 10, current_y + 95), 
+                         (left_margin + 10 + bar_width, current_y + 105), bar_color, -1)
+            cv2.rectangle(display_image, (left_margin + 10, current_y + 95), 
+                         (left_margin + 190, current_y + 105), (100, 100, 100), 1)
             
-            current_y += 115
+            current_y += 130
             
             # ===== TARGET DETECTION =====
             if contours:
@@ -249,32 +260,51 @@ class CameraViewer(Node):
                         offset = (cx - center_x) / (width / 2.0)
                         fov_coverage = max(w / width, h / height) * 100
                         
-                        # TARGET DATA PANEL (continue on left side)
-                        self.draw_hud_panel(display_image, left_margin, current_y, 250, 110, (0, 255, 255), "TARGET DATA")
+                        # TARGET INFO PANEL (continue on left side)
+                        self.draw_hud_panel(display_image, left_margin, current_y, 280, 120, (0, 255, 255), "TARGET INFORMATION")
                         
-                        cv2.putText(display_image, "LOCKED", (left_margin + 10, current_y + 35), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-                        cv2.putText(display_image, f"DIST: {self.target_distance:.2f}m", (left_margin + 10, current_y + 55), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                        cv2.putText(display_image, f"SIZE: {fov_coverage:.0f}%", (left_margin + 10, current_y + 73), 
+                        # Status
+                        cv2.putText(display_image, "TARGET FOUND", (left_margin + 10, current_y + 35), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+                        
+                        # Distance with visual indicator
+                        dist_text = f"Distance: {self.target_distance:.2f}m"
+                        cv2.putText(display_image, dist_text, (left_margin + 10, current_y + 58), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                         
-                        # Alignment indicator
+                        # Size indicator (how much of screen it fills)
+                        size_text = f"Size in view: {fov_coverage:.0f}%"
+                        cv2.putText(display_image, size_text, (left_margin + 10, current_y + 78), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                        
+                        # Alignment status with simple visual
                         if abs(offset) > 0.15:
                             align_color = (0, 165, 255)  # Orange
-                            direction = "LEFT" if offset < 0 else "RIGHT"
-                            align_text = f"TURN {direction}"
+                            align_text = "Turning to center..."
+                            # Draw arrow showing direction
+                            arrow_x = left_margin + 190
+                            arrow_y = current_y + 100
+                            if offset < 0:
+                                cv2.arrowedLine(display_image, (arrow_x + 10, arrow_y), (arrow_x - 10, arrow_y), 
+                                              align_color, 2, tipLength=0.5)
+                            else:
+                                cv2.arrowedLine(display_image, (arrow_x - 10, arrow_y), (arrow_x + 10, arrow_y), 
+                                              align_color, 2, tipLength=0.5)
                         else:
                             align_color = (0, 255, 0)
-                            align_text = "ALIGNED"
-                        cv2.putText(display_image, align_text, (left_margin + 10, current_y + 93), 
+                            align_text = "Centered [OK]"
+                            # Draw circle indicator instead of checkmark
+                            cv2.circle(display_image, (left_margin + 195, current_y + 100), 8, align_color, 2)
+                            cv2.circle(display_image, (left_margin + 195, current_y + 100), 4, align_color, -1)
+                        
+                        cv2.putText(display_image, align_text, (left_margin + 10, current_y + 103), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, align_color, 1)
             else:
-                # TARGET DATA - No Target
-                self.draw_hud_panel(display_image, left_margin, current_y, 250, 70, (0, 0, 255), "TARGET DATA")
-                cv2.putText(display_image, "NO SIGNAL", (left_margin + 10, current_y + 40), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
-                cv2.putText(display_image, "Scanning...", (left_margin + 10, current_y + 58), 
+                # TARGET INFO - No Target
+                self.draw_hud_panel(display_image, left_margin, current_y, 280, 85, (100, 100, 100), "TARGET INFORMATION")
+                cv2.putText(display_image, "NO TARGET DETECTED", (left_margin + 10, current_y + 40), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
+                cv2.putText(display_image, "Robot is scanning the area", (left_margin + 10, current_y + 63), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
             
             # Show both views
