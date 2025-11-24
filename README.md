@@ -324,16 +324,6 @@ rm -rf build/ install/ log/
 colcon build --cmake-clean-cache
 ```
 
-## Future Enhancements
-
-- [ ] Add obstacle avoidance while following
-- [ ] Implement PID controller for smoother movement
-- [ ] Add camera-based target identification
-- [ ] Support multiple targets and target selection
-- [ ] Add path planning for complex environments
-- [ ] Implement Kalman filter for target state estimation
-- [ ] Add RViz2 visualization launch configuration
-
 ## License
 
 MIT License
