@@ -11,13 +11,18 @@ This robot operates like a simple autonomous creature:
 1.  **Seeing (Vision)**: It uses a front-mounted camera to look for **Cyan/Teal** objects. It ignores everything else (like walls or other robots).
 2.  **Sensing (LIDAR)**: It uses a laser scanner to measure exactly how far away objects are, ensuring it doesn't crash.
 3.  **Thinking (Control)**:
-    *   **If it sees the target**: It turns to face it and adjusts distance dynamically.
-    *   **If it loses the target**: It spins in place to search for it.
-    *   **Optimal distance (~90cm)**: Maintains ideal viewing distance where entire target fits comfortably in camera view.
-    *   **Too close (<50cm)**: Backs up to keep target in view.
-    *   **Too far (>105cm)**: Moves forward to get closer.
+    *   **If it sees the target**: It turns to center it horizontally while approaching.
+    *   **Edge-based distance control**: Instead of using fixed distances, it approaches until the target edges are near the frame border, then stops.
+    *   **If target edges clip**: Backs up to keep the full target visible.
+    *   **If it loses the target**: Spins in place to search for it.
 
-It combines these senses to actively track moving targets while maintaining optimal viewing distance.
+**Smart Distance Control:**
+The robot uses a two-tier margin system to get as close as possible without the target leaving the camera frame:
+- **15px Safety Margin**: Stops approaching when target edges are within 15 pixels of frame border
+- **2px Clip Margin**: Backs up if target edges actually reach the frame border (clipped)
+- **Hold Zone**: Between these margins, the robot holds steady without oscillating
+
+This intelligent approach maximizes proximity while ensuring the target stays fully visible at all times.
 
 ---
 
@@ -68,22 +73,67 @@ python3 view_camera.py
 ### Control Logic (Priority System)
 The robot makes decisions 20 times per second (20Hz) based on this hierarchy:
 
-1.  **EMERGENCY (Priority 1)**: If *any* object is < 0.35m (Collision Avoidance - STOP).
-2.  **DYNAMIC TRACKING (Priority 2)**: If target detected in camera:
-    *   Calculate horizontal error from image center.
-    *   Apply proportional control (`angular_vel = -error * 1.5`).
-    *   **Distance Control**:
-        *   < 50cm: Back up at -0.1 m/s (too close, losing FOV)
-        *   75-105cm: Hold position at 0.05 m/s (optimal tracking zone)
-        *   > 105cm: Approach at 0.25 m/s (too far)
-3.  **SEARCH (Priority 3)**: If no target visible, rotate at 0.4 rad/s.
+1.  **EMERGENCY STOP**: If *any* object is < 0.30m → STOP immediately (collision avoidance).
+2.  **EDGES CLIPPED**: If target edges are within 2px of frame border → BACK UP at -0.12 m/s.
+3.  **TARGET TOO FAR**: If target fills < 20% of FOV → APPROACH FAST at 0.20 m/s.
+4.  **TARGET SAFE & SMALL**: If edges safe (>15px from border) AND fills < 60% FOV → APPROACH SLOW at 0.08 m/s.
+5.  **TARGET SAFE & LARGE**: If edges safe AND fills ≥ 60% FOV → HOLD POSITION (stabilize).
+6.  **EDGES IN DANGER ZONE**: If edges between 2-15px from border → HOLD POSITION (prevent oscillation).
+7.  **TARGET OFF-CENTER**: If target not centered → TURN with proportional control + size-based damping.
+8.  **NO TARGET**: If nothing detected → SEARCH by rotating at 0.4 rad/s.
+
+**Turn Control:**
+- Proportional control: `angular_vel = -horizontal_error * gain`
+- Size-based damping: Reduces sensitivity when target is close (prevents over-correction)
+- Turn deadzone: ±0.05 (prevents micro-adjustments)
+
+**Edge Detection System:**
+- **Safety Margin (15px)**: Creates a "keep-out zone" near frame borders
+- **Clip Margin (2px)**: Detects when target is actually clipping the frame
+- **Visibility Status**: Tracks whether all 4 edges (left, right, top, bottom) are safely visible
+- **Prevents Oscillation**: Robot won't flip-flop between approach/backup at the boundary
 
 ### Vision Pipeline
-1.  **Input**: Raw RGB image from camera.
-2.  **Preprocessing**: Convert to HSV color space.
-3.  **Filtering**: Threshold for Cyan (Hue: 80-100).
-4.  **Cleanup**: Apply Morphological Open/Close to remove noise.
-5.  **Detection**: Find largest contour -> Calculate Centroid -> Output X-coordinate.
+1.  **Input**: Raw RGB image from camera (640×480).
+2.  **Preprocessing**: Convert BGR to HSV color space (better for color detection).
+3.  **Filtering**: Threshold for Cyan (Hue: 80-100, Saturation: 50-255, Value: 50-255).
+4.  **Cleanup**: Apply morphological operations (5×5 ellipse kernel):
+    - Close: Fill small holes inside target
+    - Open: Remove small noise outside target
+5.  **Detection**: Find contours using `cv::findContours()`.
+6.  **Selection**: Choose largest contour (most likely the target).
+7.  **Bounding Box**: Calculate `cv::boundingRect()` for edge positions.
+8.  **Edge Analysis**: Check if each edge (left, right, top, bottom) is:
+    - Within safety margin (15px from border)
+    - Clipped (within 2px from border)
+9.  **Output**: 
+    - Normalized X-coordinate for steering (-1 = left, +1 = right)
+    - Width/Height ratios (target size as fraction of frame)
+    - Edge visibility status (safe, danger zone, or clipped)
+
+### Modern HUD Camera Viewer
+The `view_camera.py` script displays real-time telemetry with a sci-fi inspired interface:
+
+**Features:**
+- **System Info Panel** (top-left):
+  - Resolution, FPS, FOV
+  - Camera status
+- **Robot Status Panel** (middle-left):
+  - Current action (e.g., "APPROACHING: OPTIMIZING DISTANCE")
+  - Linear velocity (m/s)
+  - Angular velocity (rad/s)
+- **Target Data Panel** (bottom-left):
+  - Distance to target (meters)
+  - Target size (% of frame)
+  - Detection status
+- **Center Crosshair**: Helps visualize target centering
+- **Target Bounding Box**: Shows detected target with corner brackets
+
+**Design:**
+- Dark semi-transparent panels for readability
+- Cyan theme matching target color
+- Consistent 0.4-scale text throughout
+- Left-side consolidated layout
 
 ---
 
@@ -92,14 +142,16 @@ The robot makes decisions 20 times per second (20Hz) based on this hierarchy:
 ```text
 AI-Robotics-Group-12-Project/
 ├── src/
-│   └── vision_target_follower_node.cpp  # Main C++ control node
+│   └── vision_target_follower_node.cpp  # Main C++ control node with edge-based distance control
 ├── launch/
 │   └── obstacle_course.launch.py        # Launches Gazebo, Robot, and Nodes
 ├── models/                              # SDF Models
 │   ├── turtlebot/                       # Robot with Camera + LIDAR
-│   └── cyan_target/                     # The target object
+│   └── cyan_target/                     # The target cylinder
 ├── worlds/
 │   └── obstacle_course.world            # Simulation environment
+├── view_camera.py                       # Modern HUD camera viewer
+├── run_with_camera_viewer.sh            # One-command launch script
 └── CMakeLists.txt                       # Build configuration
 ```
 

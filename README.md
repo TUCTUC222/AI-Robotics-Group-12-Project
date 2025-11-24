@@ -20,10 +20,11 @@ This project demonstrates autonomous target tracking using:
 
 - ✅ **Color-Based Detection**: Uses HSV color space to identify cyan targets
 - ✅ **Sensor Fusion**: Combines camera vision with LIDAR distance data
-- ✅ **Proportional Control**: Smooth turning and speed adjustment
-- ✅ **Dynamic Tracking**: Actively follows moving targets with distance control
+- ✅ **Edge-Based Distance Control**: Intelligent approach system that maximizes proximity while keeping target fully in frame
+- ✅ **Dynamic Tracking**: Actively follows moving targets with real-time centering
 - ✅ **Search Behavior**: Automatically scans environment when target lost
-- ✅ **Optimal Distance**: Maintains ~90cm for full FOV coverage and tracking stability
+- ✅ **Modern HUD**: Real-time telemetry display with velocity, distance, and status information
+- ✅ **Stable Positioning**: Two-tier safety margin system prevents oscillation
 
 ## 🚀 Quick Start
 
@@ -108,27 +109,42 @@ AI-Robotics-Group-12-Project/
 ## 🔧 How It Works
 
 ### Simple Explanation
-1. **Camera** sees cyan/teal colored objects (ignores walls and other colors)
-2. **LIDAR** measures exact distance to objects
+1. **Camera** detects cyan/teal colored targets using HSV color filtering
+2. **LIDAR** measures exact distance to objects for collision avoidance
 3. **Control System** makes decisions 20 times per second:
-   - If target visible → Turn to center it, then drive forward
+   - If target visible → Center it horizontally while approaching
+   - If target edges near frame border → Stop approaching (hold position)
+   - If target edges clipped → Back up to keep fully visible
    - If target lost → Spin in place to search
-   - If close enough (30cm) → Stop
 
 ### Technical Details
 
 **Vision Pipeline:**
-- Convert RGB to HSV color space
-- Threshold for cyan (Hue: 80-100)
-- Apply morphological operations to reduce noise
-- Find contours and calculate centroid
-- Output normalized X-position for steering
+- Convert RGB to HSV color space (better for color detection)
+- Threshold for cyan (Hue: 80-100, Saturation: 50-255)
+- Apply morphological operations (closing & opening) to reduce noise
+- Find contours and calculate bounding box
+- Detect edge positions and visibility status
+- Output normalized X-position for steering control
+
+**Edge-Based Distance Control:**
+The robot uses a sophisticated two-tier margin system:
+- **Safety Margin (15px)**: Stop approaching when target edges are within 15 pixels of frame border
+- **Clip Margin (2px)**: Back up if target edges are actually clipped (within 2 pixels)
+- **Hold Zone**: Between margins, robot holds position without oscillating
+- **Approach Logic**: Only approach when edges are safely within the safety margin AND target fills <60% of FOV
+
+This prevents the oscillation problem of percentage-based systems while maximizing proximity to the target.
 
 **Control Logic (Priority System):**
-1. **Priority 1**: Target reached (≤30cm) → STOP
-2. **Priority 2**: Emergency (object <25cm) → STOP
-3. **Priority 3**: Target visible → TRACK (proportional control)
-4. **Priority 4**: No target → SEARCH (rotate 0.4 rad/s)
+1. **Priority 1**: Emergency (object <30cm) → EMERGENCY STOP
+2. **Priority 2**: Target edges clipped → BACK UP (-0.12 m/s)
+3. **Priority 3**: Target too small (<20% FOV) → APPROACH FAST (0.20 m/s)
+4. **Priority 4**: Target edges safe + small (<60% FOV) → APPROACH SLOW (0.08 m/s)
+5. **Priority 5**: Target edges safe + large (≥60% FOV) → HOLD POSITION
+6. **Priority 6**: Target edges in danger zone → HOLD POSITION
+7. **Priority 7**: Target off-center → TURN + APPROACH SLOW
+8. **Priority 8**: No target → SEARCH (rotate 0.4 rad/s)
 
 **Sensors:**
 - RGB Camera: 640×480 @ 30Hz
@@ -142,9 +158,12 @@ AI-Robotics-Group-12-Project/
 | **Camera** | 640×480 pixels, 30 Hz, 60° FOV |
 | **LIDAR** | 360° scan, 5 Hz, 0.12-3.5m range |
 | **Control Rate** | 20 Hz |
-| **Target Detection** | HSV color filtering (Cyan/Teal) |
-| **Stopping Distance** | 0.30m (±3cm accuracy) |
-| **Max Speed** | 0.3 m/s linear, 0.8 rad/s angular |
+| **Target Detection** | HSV color filtering (Cyan: H=80-100) |
+| **Edge Detection** | 15px safety margin, 2px clip margin |
+| **Distance Control** | Edge-based approach with stability zones |
+| **Approach Speed** | Fast: 0.20 m/s, Slow: 0.08 m/s, Backup: -0.12 m/s |
+| **Turn Control** | Proportional with size-based damping |
+| **Emergency Stop** | <0.30m distance threshold |
 
 ## 🎮 Interactive Commands
 

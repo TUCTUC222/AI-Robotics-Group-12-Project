@@ -7,6 +7,24 @@
 echo "Starting Gazebo simulation with camera viewer..."
 echo "================================================"
 
+# Kill any existing Gazebo/ROS processes
+echo "Cleaning up any existing processes..."
+pkill -9 -f "ros2 launch" 2>/dev/null
+pkill -9 -f "ign gazebo" 2>/dev/null
+pkill -9 -f "gz sim" 2>/dev/null
+pkill -9 -f "vision_target_follower" 2>/dev/null
+pkill -9 -f "view_camera.py" 2>/dev/null
+pkill -9 -f "parameter_bridge" 2>/dev/null
+sleep 2
+
+# Build the project
+echo "Building project..."
+colcon build
+if [ $? -ne 0 ]; then
+    echo "Build failed! Exiting."
+    exit 1
+fi
+
 # Source ROS2 environment
 source /opt/ros/humble/setup.bash
 source install/setup.bash
