@@ -11,11 +11,13 @@ This robot operates like a simple autonomous creature:
 1.  **Seeing (Vision)**: It uses a front-mounted camera to look for **Cyan/Teal** objects. It ignores everything else (like walls or other robots).
 2.  **Sensing (LIDAR)**: It uses a laser scanner to measure exactly how far away objects are, ensuring it doesn't crash.
 3.  **Thinking (Control)**:
-    *   **If it sees the target**: It turns to face it and drives forward.
+    *   **If it sees the target**: It turns to face it and adjusts distance dynamically.
     *   **If it loses the target**: It spins in place to search for it.
-    *   **If it gets close (30cm)**: It stops automatically.
+    *   **Optimal distance (~90cm)**: Maintains ideal viewing distance where entire target fits comfortably in camera view.
+    *   **Too close (<50cm)**: Backs up to keep target in view.
+    *   **Too far (>105cm)**: Moves forward to get closer.
 
-It combines these senses to smoothly track moving targets and stop safely.
+It combines these senses to actively track moving targets while maintaining optimal viewing distance.
 
 ---
 
@@ -28,15 +30,25 @@ colcon build
 source install/setup.bash
 ```
 
-**2. Run the Simulation**
+**2. Run the Simulation (Recommended)**
 ```bash
+./run_with_camera_viewer.sh
+```
+This single command launches both Gazebo simulation and the camera viewer!
+
+**Alternative - Manual Launch:**
+```bash
+# Terminal 1: Launch simulation
 ros2 launch lidar_target_follower obstacle_course.launch.py
+
+# Terminal 2: View camera feed
+python3 view_camera.py
 ```
 
 **3. Interact**
-*   **Move the Target**: In Gazebo, use the "Translate" tool to drag the cyan cylinder. The robot will follow.
-*   **View Camera Feed**: Run `python3 view_camera.py` in a new terminal to see what the robot sees with target detection overlays.
-*   **FOV Visualization**: The robot shows cyan glowing lines in Gazebo representing the camera's 60° field of view cone.
+*   **Move the Target**: In Gazebo, use the "Translate" tool to drag the cyan cylinder. The robot will actively follow and maintain distance.
+*   **Camera Viewer**: Shows live feed with target detection, contours, crosshair, and tracking info.
+*   **FOV Visualization**: The robot displays yellow glowing lines in Gazebo showing the camera's 60° field of view cone.
 
 ---
 
@@ -56,13 +68,15 @@ ros2 launch lidar_target_follower obstacle_course.launch.py
 ### Control Logic (Priority System)
 The robot makes decisions 20 times per second (20Hz) based on this hierarchy:
 
-1.  **STOP (Priority 1)**: If target distance ≤ 0.3m (Target Reached).
-2.  **EMERGENCY (Priority 2)**: If *any* object is < 0.25m (Collision Avoidance).
-3.  **TRACK (Priority 3)**: If target detected in camera:
-    *   Calculate error from image center.
+1.  **EMERGENCY (Priority 1)**: If *any* object is < 0.35m (Collision Avoidance - STOP).
+2.  **DYNAMIC TRACKING (Priority 2)**: If target detected in camera:
+    *   Calculate horizontal error from image center.
     *   Apply proportional control (`angular_vel = -error * 1.5`).
-    *   Adjust speed based on distance (0.3 m/s far, 0.1 m/s near).
-4.  **SEARCH (Priority 4)**: If no target visible, rotate at 0.4 rad/s.
+    *   **Distance Control**:
+        *   < 50cm: Back up at -0.1 m/s (too close, losing FOV)
+        *   75-105cm: Hold position at 0.05 m/s (optimal tracking zone)
+        *   > 105cm: Approach at 0.25 m/s (too far)
+3.  **SEARCH (Priority 3)**: If no target visible, rotate at 0.4 rad/s.
 
 ### Vision Pipeline
 1.  **Input**: Raw RGB image from camera.

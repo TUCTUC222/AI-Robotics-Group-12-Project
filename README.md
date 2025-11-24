@@ -21,9 +21,9 @@ This project demonstrates autonomous target tracking using:
 - ✅ **Color-Based Detection**: Uses HSV color space to identify cyan targets
 - ✅ **Sensor Fusion**: Combines camera vision with LIDAR distance data
 - ✅ **Proportional Control**: Smooth turning and speed adjustment
-- ✅ **Dynamic Tracking**: Follows targets even when they move
+- ✅ **Dynamic Tracking**: Actively follows moving targets with distance control
 - ✅ **Search Behavior**: Automatically scans environment when target lost
-- ✅ **Accurate Stopping**: Consistently stops at 30cm from target
+- ✅ **Optimal Distance**: Maintains ~90cm for full FOV coverage and tracking stability
 
 ## 🚀 Quick Start
 
@@ -56,24 +56,34 @@ This project demonstrates autonomous target tracking using:
 
 ### Running the Simulation
 
+**Recommended - Run with Camera Viewer (All-in-One):**
+```bash
+./run_with_camera_viewer.sh
+```
+This automatically launches both the Gazebo simulation and camera viewer together!
+
+**Alternative - Manual Launch:**
 ```bash
 ros2 launch lidar_target_follower obstacle_course.launch.py
+
+# In a new terminal to view camera
+python3 view_camera.py
 ```
 
 **What happens:**
 1. Gazebo opens with the TurtleBot3 and a cyan target cylinder
-2. Robot displays cyan glowing lines showing its 60° camera field of view
-3. Robot's camera detects the cyan color
-4. Robot turns to center the target in its view
-5. Robot approaches and stops at ~30cm distance
-6. Try moving the target - the robot will follow it!
+2. Robot displays yellow glowing lines showing its 60° camera field of view
+3. Camera viewer window shows live feed with detection overlays
+4. Robot's camera detects the cyan color
+5. Robot turns to center the target in its view
+6. Robot maintains ~90cm optimal tracking distance
+7. Try moving the target - the robot will actively follow it!
 
-**View What the Robot Sees:**
-```bash
-# In a new terminal
-python3 view_camera.py
-```
-This opens a window showing the camera feed with target detection overlays!
+**The camera viewer displays:**
+- 🎥 Live camera feed with target detection
+- 🎯 Green crosshair at image center
+- 🔵 Cyan contours around detected targets
+- 📊 Real-time info (area, offset, turn direction)
 
 ## 📂 Project Structure
 

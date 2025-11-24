@@ -137,25 +137,19 @@ private:
     {
         auto twist = geometry_msgs::msg::Twist();
         
-        const float TARGET_DISTANCE = 0.30;  // Stop 30cm from target
-        const float DANGER_DISTANCE = 0.25;  // Emergency stop distance
+        const float OPTIMAL_DISTANCE = 0.90;  // Ideal tracking distance (90cm)
+        const float DISTANCE_TOLERANCE = 0.15;  // ±15cm is acceptable
+        const float MIN_DISTANCE = 0.50;  // Don't get closer than 50cm
+        const float DANGER_DISTANCE = 0.35;  // Emergency stop distance
         
-        // PRIORITY 1: Check if we've reached the target
-        if (target_detected_ && closest_distance_ <= TARGET_DISTANCE) {
-            // TARGET REACHED!
-            twist.linear.x = 0.0;
-            twist.angular.z = 0.0;
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                "✅ TARGET REACHED! Stopped at %.2fm", closest_distance_);
-        }
-        // PRIORITY 2: Emergency stop if too close
-        else if (closest_distance_ < DANGER_DISTANCE) {
+        // PRIORITY 1: Emergency stop if too close
+        if (closest_distance_ < DANGER_DISTANCE) {
             twist.linear.x = 0.0;
             twist.angular.z = 0.0;
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
                 "⚠️ TOO CLOSE! Distance: %.2fm", closest_distance_);
         }
-        // PRIORITY 3: Target visible - track it!
+        // PRIORITY 2: Target visible - actively track it!
         else if (target_detected_) {
             // Turn toward target based on its position in the image
             float turn_rate = -target_x_center_ * 1.5;  // Proportional control
@@ -166,16 +160,32 @@ private:
             
             twist.angular.z = turn_rate;
             
-            // Move forward speed based on how centered the target is
+            // DISTANCE-BASED SPEED CONTROL - maintain optimal viewing distance
+            float distance_error = closest_distance_ - OPTIMAL_DISTANCE;
+            
             if (std::abs(target_x_center_) < 0.15) {
-                // Target is centered - move straight
-                if (closest_distance_ < 0.6) {
-                    twist.linear.x = 0.1;  // Slow approach
+                // Target is centered - adjust distance dynamically
+                if (closest_distance_ < MIN_DISTANCE) {
+                    // Too close - back up slowly
+                    twist.linear.x = -0.1;
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                        "⬅️ TOO CLOSE! Backing up... (%.2fm)", closest_distance_);
+                } else if (std::abs(distance_error) < DISTANCE_TOLERANCE) {
+                    // Perfect distance - hold position (slight forward bias)
+                    twist.linear.x = 0.05;
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                        "🎯 TRACKING! Distance: %.2fm (optimal)", closest_distance_);
+                } else if (distance_error > DISTANCE_TOLERANCE) {
+                    // Too far - move forward
+                    twist.linear.x = 0.25;
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                        "➡️ APPROACHING! Distance: %.2fm", closest_distance_);
                 } else {
-                    twist.linear.x = 0.3;  // Normal speed
+                    // Slightly too close - slow approach
+                    twist.linear.x = 0.1;
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                        "🎯 TRACKING! Distance: %.2fm", closest_distance_);
                 }
-                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                    "🎯 LOCKED ON! Approaching... (%.2fm)", closest_distance_);
             } else {
                 // Target off-center - turn more, move slower
                 twist.linear.x = 0.1;
