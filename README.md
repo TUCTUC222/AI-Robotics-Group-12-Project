@@ -173,11 +173,13 @@ This prevents the oscillation problem of percentage-based systems while maximizi
 python3 view_camera.py
 ```
 Shows live camera view with modern interface:
+- **Modern Rounded Panels**: Clean dark backgrounds with elegant rounded corners
 - **Robot Status**: What the robot is doing in plain English (e.g., "Getting closer to target")
 - **Visual Speed Bar**: Shows movement intensity at a glance
 - **Target Info**: Distance, size, and alignment status
 - **Visual Indicators**: Arrows for turn direction, circle for centered [OK]
 - **Color-Coded Status**: Green (good), Cyan (moving), Orange (searching), Red (warning)
+- **Minimalist Design**: No borders or clutter - thin typography, subtle separators
 - **Dual Windows**: Main camera view + cyan detection mask
 
 **Monitor LIDAR data:**

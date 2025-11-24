@@ -69,26 +69,67 @@ class CameraViewer(Node):
         """Track distance to target"""
         self.target_distance = msg.data
         
-    def draw_hud_panel(self, image, x, y, width, height, color=(0, 255, 255), header_text=None):
-        """Draw a modern HUD panel with header"""
-        # Background
-        overlay = image.copy()
-        cv2.rectangle(overlay, (x, y), (x + width, y + height), (20, 20, 20), -1)
+    def draw_rounded_rectangle(self, image, x, y, width, height, color, thickness=-1, radius=10):
+        """Draw a rectangle with rounded corners"""
+        # Create mask for rounded rectangle
+        mask = np.zeros(image.shape[:2], dtype=np.uint8)
         
-        # Header strip
-        if header_text:
-            cv2.rectangle(overlay, (x, y), (x + width, y + 20), color, -1)
+        # Draw rounded corners using circles
+        cv2.circle(mask, (x + radius, y + radius), radius, 255, -1)
+        cv2.circle(mask, (x + width - radius, y + radius), radius, 255, -1)
+        cv2.circle(mask, (x + radius, y + height - radius), radius, 255, -1)
+        cv2.circle(mask, (x + width - radius, y + height - radius), radius, 255, -1)
+        
+        # Draw rectangles to connect the circles
+        cv2.rectangle(mask, (x + radius, y), (x + width - radius, y + height), 255, -1)
+        cv2.rectangle(mask, (x, y + radius), (x + width, y + height - radius), 255, -1)
+        
+        if thickness == -1:
+            # Filled rectangle
+            image[mask == 255] = color
+        else:
+            # Draw border by subtracting inner rectangle
+            inner_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+            if x + thickness < x + width - thickness and y + thickness < y + height - thickness:
+                inner_x, inner_y = x + thickness, y + thickness
+                inner_width, inner_height = width - 2*thickness, height - 2*thickness
+                inner_radius = max(1, radius - thickness)
+                
+                cv2.circle(inner_mask, (inner_x + inner_radius, inner_y + inner_radius), inner_radius, 255, -1)
+                cv2.circle(inner_mask, (inner_x + inner_width - inner_radius, inner_y + inner_radius), inner_radius, 255, -1)
+                cv2.circle(inner_mask, (inner_x + inner_radius, inner_y + inner_height - inner_radius), inner_radius, 255, -1)
+                cv2.circle(inner_mask, (inner_x + inner_width - inner_radius, inner_y + inner_height - inner_radius), inner_radius, 255, -1)
+                
+                cv2.rectangle(inner_mask, (inner_x + inner_radius, inner_y), (inner_x + inner_width - inner_radius, inner_y + inner_height), 255, -1)
+                cv2.rectangle(inner_mask, (inner_x, inner_y + inner_radius), (inner_x + inner_width, inner_y + inner_height - inner_radius), 255, -1)
             
-        # Darker background for better text contrast
-        cv2.addWeighted(overlay, 0.8, image, 0.2, 0, image)
+            border_mask = cv2.subtract(mask, inner_mask)
+            image[border_mask == 255] = color
+    
+    def draw_hud_panel(self, image, x, y, width, height, color=(0, 255, 255), header_text=None):
+        """Draw a modern HUD panel with rounded corners and dark header"""
+        # Create overlay for transparency
+        overlay = image.copy()
         
-        # Border lines
-        cv2.rectangle(image, (x, y), (x + width, y + height), color, 1)
+        # Draw main panel with rounded corners - dark background
+        temp = np.zeros_like(image)
+        self.draw_rounded_rectangle(temp, x, y, width, height, (15, 15, 15), -1, radius=12)
+        
+        # Blend panel with transparency
+        mask = (temp > 0).any(axis=2).astype(np.uint8) * 255
+        alpha = 0.85
+        image_with_panel = np.where(mask[:,:,None] > 0, 
+                                     cv2.addWeighted(overlay, 1-alpha, temp, alpha, 0), 
+                                     overlay)
+        image[:] = image_with_panel
         
         if header_text:
-            # Header text in black
-            cv2.putText(image, header_text, (x + 5, y + 15), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+            # Draw subtle header separator line
+            cv2.line(image, (x + 8, y + 32), (x + width - 8, y + 32), (40, 40, 40), 1)
+            
+            # Header text - clean and thin with colored text
+            cv2.putText(image, header_text, (x + 10, y + 20), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.42, color, 1, cv2.LINE_AA)
     
     def image_callback(self, msg):
         try:
@@ -117,29 +158,6 @@ class CameraViewer(Node):
             display_image = cv_image.copy()
             height, width = display_image.shape[:2]
             center_x, center_y = width // 2, height // 2
-            
-            # ===== DRAW HUD FRAME =====
-            # Modern corner brackets
-            accent_len = 30
-            gap = 10
-            color = (0, 255, 255)
-            thickness = 2
-            
-            # Top Left
-            cv2.line(display_image, (gap, gap), (gap + accent_len, gap), color, thickness)
-            cv2.line(display_image, (gap, gap), (gap, gap + accent_len), color, thickness)
-            
-            # Top Right
-            cv2.line(display_image, (width - gap, gap), (width - gap - accent_len, gap), color, thickness)
-            cv2.line(display_image, (width - gap, gap), (width - gap, gap + accent_len), color, thickness)
-            
-            # Bottom Left
-            cv2.line(display_image, (gap, height - gap), (gap + accent_len, height - gap), color, thickness)
-            cv2.line(display_image, (gap, height - gap), (gap, height - gap - accent_len), color, thickness)
-            
-            # Bottom Right
-            cv2.line(display_image, (width - gap, height - gap), (width - gap - accent_len, height - gap), color, thickness)
-            cv2.line(display_image, (width - gap, height - gap), (width - gap, height - gap - accent_len), color, thickness)
             
             # ===== LEFT SIDE HUD - SIMPLIFIED FOR NON-TECHNICAL USERS =====
             left_margin = 15
@@ -171,9 +189,9 @@ class CameraViewer(Node):
             
             self.draw_hud_panel(display_image, left_margin, current_y, 280, 115, status_color, "WHAT IS THE ROBOT DOING?")
             
-            # Simple status icon
-            cv2.putText(display_image, status_icon, (left_margin + 10, current_y + 40), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, status_color, 2)
+            # Simple status icon (start below header with padding)
+            cv2.putText(display_image, status_icon, (left_margin + 10, current_y + 48), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, status_color, 1)
             
             # Simplified explanation
             if "EMERGENCY" in self.robot_status:
@@ -195,21 +213,21 @@ class CameraViewer(Node):
             else:
                 explanation = "Ready to start."
             
-            cv2.putText(display_image, explanation, (left_margin + 10, current_y + 65), 
+            cv2.putText(display_image, explanation, (left_margin + 10, current_y + 72), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
             
             # Speed indicator with visual bar
             speed_label = f"Speed: {abs(self.linear_vel):.2f} m/s"
-            cv2.putText(display_image, speed_label, (left_margin + 10, current_y + 88), 
+            cv2.putText(display_image, speed_label, (left_margin + 10, current_y + 92), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
             # Visual speed bar
             bar_width = int(min(abs(self.linear_vel) * 600, 180))  # Max 0.3 m/s = 180px
             bar_color = (0, 255, 0) if self.linear_vel >= 0 else (0, 0, 255)
-            cv2.rectangle(display_image, (left_margin + 10, current_y + 95), 
-                         (left_margin + 10 + bar_width, current_y + 105), bar_color, -1)
-            cv2.rectangle(display_image, (left_margin + 10, current_y + 95), 
-                         (left_margin + 190, current_y + 105), (100, 100, 100), 1)
+            cv2.rectangle(display_image, (left_margin + 10, current_y + 100), 
+                         (left_margin + 10 + bar_width, current_y + 110), bar_color, -1)
+            cv2.rectangle(display_image, (left_margin + 10, current_y + 100), 
+                         (left_margin + 190, current_y + 110), (100, 100, 100), 1)
             
             current_y += 130
             
@@ -263,18 +281,18 @@ class CameraViewer(Node):
                         # TARGET INFO PANEL (continue on left side)
                         self.draw_hud_panel(display_image, left_margin, current_y, 280, 120, (0, 255, 255), "TARGET INFORMATION")
                         
-                        # Status
-                        cv2.putText(display_image, "TARGET FOUND", (left_margin + 10, current_y + 35), 
+                        # Status (start below header with padding)
+                        cv2.putText(display_image, "TARGET FOUND", (left_margin + 10, current_y + 48), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
                         
                         # Distance with visual indicator
                         dist_text = f"Distance: {self.target_distance:.2f}m"
-                        cv2.putText(display_image, dist_text, (left_margin + 10, current_y + 58), 
+                        cv2.putText(display_image, dist_text, (left_margin + 10, current_y + 68), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                         
                         # Size indicator (how much of screen it fills)
                         size_text = f"Size in view: {fov_coverage:.0f}%"
-                        cv2.putText(display_image, size_text, (left_margin + 10, current_y + 78), 
+                        cv2.putText(display_image, size_text, (left_margin + 10, current_y + 88), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                         
                         # Alignment status with simple visual
@@ -283,7 +301,7 @@ class CameraViewer(Node):
                             align_text = "Turning to center..."
                             # Draw arrow showing direction
                             arrow_x = left_margin + 190
-                            arrow_y = current_y + 100
+                            arrow_y = current_y + 110
                             if offset < 0:
                                 cv2.arrowedLine(display_image, (arrow_x + 10, arrow_y), (arrow_x - 10, arrow_y), 
                                               align_color, 2, tipLength=0.5)
@@ -294,17 +312,17 @@ class CameraViewer(Node):
                             align_color = (0, 255, 0)
                             align_text = "Centered [OK]"
                             # Draw circle indicator instead of checkmark
-                            cv2.circle(display_image, (left_margin + 195, current_y + 100), 8, align_color, 2)
-                            cv2.circle(display_image, (left_margin + 195, current_y + 100), 4, align_color, -1)
+                            cv2.circle(display_image, (left_margin + 195, current_y + 110), 8, align_color, 2)
+                            cv2.circle(display_image, (left_margin + 195, current_y + 110), 4, align_color, -1)
                         
-                        cv2.putText(display_image, align_text, (left_margin + 10, current_y + 103), 
+                        cv2.putText(display_image, align_text, (left_margin + 10, current_y + 113), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, align_color, 1)
             else:
                 # TARGET INFO - No Target
                 self.draw_hud_panel(display_image, left_margin, current_y, 280, 85, (100, 100, 100), "TARGET INFORMATION")
-                cv2.putText(display_image, "NO TARGET DETECTED", (left_margin + 10, current_y + 40), 
+                cv2.putText(display_image, "NO TARGET DETECTED", (left_margin + 10, current_y + 48), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
-                cv2.putText(display_image, "Robot is scanning the area", (left_margin + 10, current_y + 63), 
+                cv2.putText(display_image, "Robot is scanning the area", (left_margin + 10, current_y + 70), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
             
             # Show both views

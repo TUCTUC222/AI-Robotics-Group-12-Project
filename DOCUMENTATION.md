@@ -132,10 +132,12 @@ The `view_camera.py` script displays real-time telemetry with a user-friendly in
 - **Visual Elements**:
   - Center crosshair for alignment reference
   - Target bounding box with corner brackets
-  - Frame corner accents for modern look
+  - Clean minimalist design without frame borders
 
 **Design:**
-- Dark semi-transparent panels for readability
+- Modern rounded panels with dark semi-transparent backgrounds
+- Thin, elegant typography for readability
+- Colored header text with subtle separator lines
 - Color-coded status for quick understanding
 - No technical jargon - friendly for all users
 - Visual indicators (bars, arrows, shapes) instead of complex numbers
