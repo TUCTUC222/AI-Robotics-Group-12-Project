@@ -17,13 +17,20 @@ public:
                                   target_detected_(false),
                                   target_x_center_(0.0),
                                   closest_distance_(10.0),
+                                  left_distance_(10.0),
+                                  right_distance_(10.0),
                                   target_width_ratio_(0.0),
                                   target_height_ratio_(0.0),
                                   target_edges_visible_(true),
                                   target_edges_clipped_(false),
                                   target_reached_(false),
-                                  stable_counter_(0)
+                                  stable_counter_(0),
+                                  last_target_x_(0.0),
+                                  last_target_dist_(0.0)
     {
+        // Initialize last detection time
+        last_detection_time_ = this->get_clock()->now();
+
         // Create publisher for velocity commands
         publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
         
@@ -136,15 +143,19 @@ private:
                         float max_dimension_ratio = std::max(target_width_ratio_, target_height_ratio_);
                         
                         // Normalize x position to [-1, 1] (left to right)
-                        // Scale the offset based on target size - larger targets need less aggressive turns
                         float raw_offset = (center_x - image.cols / 2.0) / (image.cols / 2.0);
                         
-                        // Apply size-based damping: when target is large (close), reduce sensitivity
-                        // Use the larger dimension for damping to prevent oscillation
-                        float size_damping = 1.0f - std::min(max_dimension_ratio * 1.5f, 0.7f);
+                        // Apply minimal size-based damping only for very large/close targets to prevent oscillation
+                        // Reduced damping to maintain better centering response
+                        float size_damping = 1.0f - std::min(max_dimension_ratio * 0.5f, 0.3f);
                         target_x_center_ = raw_offset * size_damping;
                         
                         target_detected_ = true;
+                        
+                        // Update last known position info
+                        last_detection_time_ = this->get_clock()->now();
+                        last_target_x_ = target_x_center_;
+                        last_target_dist_ = closest_distance_;
                         
                         if (all_edges_safe && !any_edge_clipped) {
                             RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
@@ -170,24 +181,37 @@ private:
     
     void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr scan)
     {
-        // Get minimum distance in front cone (for stopping distance)
-        float min_dist = scan->range_max;
+        // Reset distances
+        float min_front = scan->range_max;
+        float min_left = scan->range_max;
+        float min_right = scan->range_max;
+        
         int num_readings = scan->ranges.size();
         
         for (int i = 0; i < num_readings; i++) {
             float angle = scan->angle_min + i * scan->angle_increment;
             float angle_deg = angle * 180.0 / M_PI;
+            float range = scan->ranges[i];
             
-            // Front 60-degree cone
-            if (angle_deg >= -30.0 && angle_deg <= 30.0) {
-                float range = scan->ranges[i];
-                if (std::isfinite(range) && range > scan->range_min && range < min_dist) {
-                    min_dist = range;
+            if (std::isfinite(range) && range > scan->range_min) {
+                // Front cone (-30 to 30)
+                if (angle_deg >= -30.0 && angle_deg <= 30.0) {
+                    if (range < min_front) min_front = range;
+                }
+                // Left cone (30 to 75) - widened for better avoidance
+                else if (angle_deg > 30.0 && angle_deg <= 75.0) {
+                    if (range < min_left) min_left = range;
+                }
+                // Right cone (-75 to -30) - widened for better avoidance
+                else if (angle_deg >= -75.0 && angle_deg < -30.0) {
+                    if (range < min_right) min_right = range;
                 }
             }
         }
         
-        closest_distance_ = min_dist;
+        closest_distance_ = min_front;
+        left_distance_ = min_left;
+        right_distance_ = min_right;
     }
     
     void control_loop()
@@ -197,43 +221,36 @@ private:
         
         // Control thresholds
         const float MIN_FOV_COVERAGE = 0.20f;  // Start approaching if target is smaller than this
-        const float DANGER_DISTANCE = 0.30f;    // Emergency stop if closer than this
         
-        // PRIORITY 1: Emergency stop if too close
-        if (closest_distance_ < DANGER_DISTANCE) {
-            twist.linear.x = 0.0;
-            twist.angular.z = 0.0;
-            status_msg = "EMERGENCY STOP: TOO CLOSE";
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                "⚠️ TOO CLOSE! Distance: %.2fm", closest_distance_);
-        }
-        // PRIORITY 2: Target visible - actively track it with FOV awareness!
-        else if (target_detected_) {
+        // Target visible - actively track it with FOV awareness!
+        if (target_detected_) {
             // EDGE-BASED DISTANCE CONTROL - Simple rule: if edges visible, approach; if not, back up
             
             // Adaptive centering threshold
             float centering_threshold = 0.20f;
             
-            // TURN CONTROL - Always turn if target is off center
-            const float TURN_DEADZONE = 0.05;  // Very small deadzone for responsiveness
+            // OBSTACLE AVOIDANCE - Priority 1: Don't hit anything!
+            const float DANGER_DIST = 0.5f;   // Stop if obstacle this close
+            const float AVOID_DIST = 0.8f;    // Start avoiding at this distance
+            
+            bool obstacle_front = (closest_distance_ < AVOID_DIST);
+            
+            // TURN CONTROL - Simple vision-based tracking
+            const float TURN_DEADZONE = 0.03;  // Smaller deadzone for better centering
             if (std::abs(target_x_center_) > TURN_DEADZONE) {
-                // Target off-center - turn toward it (even if "target reached")
-                float turn_rate = -target_x_center_ * 1.2;  // Proportional control
+                twist.angular.z = -target_x_center_ * 2.5;  // Increased gain for faster centering
                 
                 // Limit turn rate
-                if (turn_rate > 0.8) turn_rate = 0.8;
-                if (turn_rate < -0.8) turn_rate = -0.8;
-                
-                twist.angular.z = turn_rate;
-                
-                // Reset target reached if we need to realign
-                if (target_reached_ && std::abs(target_x_center_) > 0.12) {
-                    target_reached_ = false;
-                    stable_counter_ = 0;
-                }
+                if (twist.angular.z > 1.0) twist.angular.z = 1.0;
+                if (twist.angular.z < -1.0) twist.angular.z = -1.0;
             } else {
-                // Target within deadzone - don't turn
                 twist.angular.z = 0.0;
+            }
+            
+            // Reset target reached if we are turning significantly
+            if (std::abs(twist.angular.z) > 0.2) {
+                target_reached_ = false;
+                stable_counter_ = 0;
             }
             
             // DISTANCE CONTROL - Edge-based logic with safety margin
@@ -242,7 +259,17 @@ private:
                 
                 float max_fov_coverage = std::max(target_width_ratio_, target_height_ratio_);
                 
-                if (target_edges_clipped_) {
+                // Check for obstacles FIRST - safety priority!
+                if (obstacle_front && closest_distance_ < DANGER_DIST) {
+                    // STOP! Obstacle too close
+                    twist.linear.x = 0.0;
+                    twist.angular.z = 0.0;
+                    stable_counter_ = 0;
+                    target_reached_ = false;
+                    status_msg = "STOPPED: OBSTACLE TOO CLOSE";
+                    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+                        "🛑 OBSTACLE TOO CLOSE (%.2fm)! STOPPED!", closest_distance_);
+                } else if (target_edges_clipped_) {
                     // Edge is actually clipped - back up immediately!
                     twist.linear.x = -0.20;  // Faster backup
                     stable_counter_ = 0;
@@ -250,8 +277,16 @@ private:
                     status_msg = "BACKING UP: EDGES CLIPPED";
                     RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 500,
                         "⚠️ EDGES CLIPPED! Backing up to keep target visible!");
+                } else if (obstacle_front) {
+                    // Obstacle ahead but not critical - slow down significantly
+                    twist.linear.x = 0.05;
+                    stable_counter_ = 0;
+                    target_reached_ = false;
+                    status_msg = "OBSTACLE AHEAD: SLOWING DOWN";
+                    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+                        "⚠️ Obstacle at %.2fm - slowing down", closest_distance_);
                 } else if (max_fov_coverage < MIN_FOV_COVERAGE) {
-                    // Target too small - approach quickly
+                    // Target too small - approach quickly (no obstacles)
                     twist.linear.x = 0.30;  // Faster approach from far away
                     stable_counter_ = 0;
                     target_reached_ = false;
@@ -314,24 +349,92 @@ private:
                 }
             } else {
                 // Target off-center - turn while approaching
-                twist.linear.x = 0.15;  // Faster approach while turning
+                twist.linear.x = 0.15;  // Approach while turning
+                
                 stable_counter_ = 0;  // Reset stability counter
                 target_reached_ = false;  // Reset target reached flag
                 status_msg = "ALIGNING: TURNING TO TARGET";
+                
                 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
                     "🔄 Turning toward target (offset: %.2f)", target_x_center_);
             }
         }
-        // PRIORITY 4: Target not visible - search
+        // PRIORITY 4: Target not visible - search strategy
         else {
-            // Rotate slowly to search for target
-            twist.linear.x = 0.0;
-            twist.angular.z = 0.4;
+            // Calculate time since last detection
+            auto current_time = this->get_clock()->now();
+            auto time_since_lost = (current_time - last_detection_time_).seconds();
+            
+            // PHASE 1: Turn towards last known position (0-2 seconds after loss)
+            // Only if target was significantly off-center when lost
+            if (time_since_lost < 2.0 && std::abs(last_target_x_) > 0.2) {
+                // Turn in the direction it was last seen
+                // last_target_x_ > 0 means it was on the right -> turn right (negative z)
+                float turn_dir = (last_target_x_ > 0) ? -0.6 : 0.6;
+                twist.angular.z = turn_dir;
+                
+                // Only move forward if path is clear
+                if (closest_distance_ > 0.6f) {
+                    twist.linear.x = 0.05; // Move slightly forward too
+                } else {
+                    twist.linear.x = 0.0;  // Just turn in place if obstacle ahead
+                }
+                status_msg = "SEARCH: TURNING TO LAST POS";
+                
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+                    "🔍 Lost target on %s! Turning...", (last_target_x_ > 0 ? "RIGHT" : "LEFT"));
+            }
+            // PHASE 2: Move to last known position (2-X seconds after loss)
+            // Move forward to check where it was (WITH obstacle avoidance!)
+            else {
+                // Calculate how long to drive based on last known distance
+                // Speed = 0.2 m/s
+                // Duration = distance / speed
+                float travel_duration = last_target_dist_ / 0.2f;
+                
+                // Cap duration to reasonable limits (min 2s, max 15s)
+                if (travel_duration < 2.0f) travel_duration = 2.0f;
+                if (travel_duration > 15.0f) travel_duration = 15.0f;
+                
+                float phase2_end_time = 2.0f + travel_duration;
+                
+                if (time_since_lost < phase2_end_time) {
+                    // Check if path is clear before moving forward
+                    const float SEARCH_MIN_DISTANCE = 0.6f;
+                    
+                    if (closest_distance_ > SEARCH_MIN_DISTANCE) {
+                        // Path clear - move forward to last known position
+                        twist.linear.x = 0.2;
+                        twist.angular.z = 0.0;
+                        status_msg = "SEARCH: MOVING TO LAST POS";
+                        
+                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                            "🔍 Checking last known location (%.1fm away)...", last_target_dist_);
+                    } else {
+                        // Obstacle ahead - can't reach last position, start scanning instead
+                        twist.linear.x = 0.0;
+                        twist.angular.z = 0.4;
+                        status_msg = "SEARCH: OBSTACLE AHEAD, SCANNING";
+                        
+                        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                            "⚠️ Can't reach last position - obstacle at %.2fm! Scanning instead...", 
+                            closest_distance_);
+                    }
+                }
+                // PHASE 3: Scan area (after reaching last pos)
+                else {
+                    // Standard rotation search
+                    twist.linear.x = 0.0;
+                    twist.angular.z = 0.4;
+                    status_msg = "SEARCH: SCANNING AREA";
+                    
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                        "🔍 Target lost. Scanning area...");
+                }
+            }
+            
             stable_counter_ = 0;  // Reset stability counter
             target_reached_ = false;  // Reset target reached flag
-            status_msg = "SEARCHING: SCANNING AREA";
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-                "🔍 Searching for CYAN target...");
         }
         
         publisher_->publish(twist);
@@ -357,12 +460,19 @@ private:
     bool target_detected_;
     double target_x_center_;  // Normalized position: -1 (left) to +1 (right)
     float closest_distance_;
+    float left_distance_;
+    float right_distance_;
     float target_width_ratio_;   // Target width as fraction of frame width
     float target_height_ratio_;  // Target height as fraction of frame height
     bool target_edges_visible_;  // Whether all edges are within safety margin (15px)
     bool target_edges_clipped_;  // Whether any edges are actually clipped (within 2px)
     bool target_reached_;        // Whether the robot has reached the target
     int stable_counter_;         // Count how many iterations the robot has been stable
+    
+    // Search state variables
+    rclcpp::Time last_detection_time_;
+    double last_target_x_;
+    float last_target_dist_;
 };
 
 int main(int argc, char * argv[])

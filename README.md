@@ -20,10 +20,11 @@ This project demonstrates autonomous target tracking using:
 
 - ✅ **Color-Based Detection**: Uses HSV color space to identify cyan targets
 - ✅ **Sensor Fusion**: Combines camera vision with LIDAR distance data
+- ✅ **Simple Obstacle Avoidance**: Stops before hitting obstacles - no complex pathfinding
 - ✅ **Edge-Based Distance Control**: Intelligent approach system that maximizes proximity while keeping target fully in frame
 - ✅ **Fast & Responsive**: Optimized speeds (up to 0.30 m/s approach) for quick target acquisition
 - ✅ **Dynamic Tracking**: Actively follows moving targets with real-time centering
-- ✅ **Search Behavior**: Automatically scans environment when target lost
+- ✅ **Search Behavior**: Automatically scans environment when target lost (turns in place)
 - ✅ **User-Friendly HUD**: Plain English status updates with visual indicators - no technical jargon!
 - ✅ **Stable Positioning**: Two-tier safety margin system prevents oscillation
 
@@ -110,12 +111,16 @@ AI-Robotics-Group-12-Project/
 
 ### Simple Explanation
 1. **Camera** detects cyan/teal colored targets using HSV color filtering
-2. **LIDAR** measures exact distance to objects for collision avoidance
+2. **LIDAR** measures exact distance to objects for simple obstacle avoidance
 3. **Control System** makes decisions 20 times per second:
+   - If obstacle too close (<0.5m) → STOP (won't hit anything!)
+   - If obstacle ahead (0.5-0.8m) → Slow down significantly
    - If target visible → Center it horizontally while approaching
    - If target edges near frame border → Stop approaching (hold position)
    - If target edges clipped → Back up to keep fully visible
-   - If target lost → Spin in place to search
+   - If target lost → Turn in place to search
+   
+**Note:** Robot uses reactive obstacle avoidance - it stops before hitting things but doesn't navigate around obstacles to reach blocked targets.
 
 ### Technical Details
 
@@ -137,14 +142,15 @@ The robot uses a sophisticated two-tier margin system:
 This prevents the oscillation problem of percentage-based systems while maximizing proximity to the target.
 
 **Control Logic (Priority System):**
-1. **Priority 1**: Emergency (object <30cm) → EMERGENCY STOP
+1. **Priority 1**: Obstacle too close (<0.5m) → STOP COMPLETELY
 2. **Priority 2**: Target edges clipped → BACK UP (-0.20 m/s)
-3. **Priority 3**: Target too small (<20% FOV) → APPROACH FAST (0.30 m/s)
-4. **Priority 4**: Target edges safe + small (<60% FOV) → APPROACH MEDIUM (0.15 m/s)
-5. **Priority 5**: Target edges safe + large (≥60% FOV) → HOLD POSITION
-6. **Priority 6**: Target edges in danger zone → HOLD POSITION
-7. **Priority 7**: Target off-center → TURN + APPROACH MEDIUM (0.15 m/s)
-8. **Priority 8**: No target → SEARCH (rotate 0.4 rad/s)
+3. **Priority 3**: Obstacle ahead (0.5-0.8m) → SLOW DOWN (0.05 m/s)
+4. **Priority 4**: Target too small (<20% FOV) → APPROACH FAST (0.30 m/s)
+5. **Priority 5**: Target edges safe + small (<60% FOV) → APPROACH MEDIUM (0.15 m/s)
+6. **Priority 6**: Target edges safe + large (≥60% FOV) → HOLD POSITION
+7. **Priority 7**: Target edges in danger zone → HOLD POSITION
+8. **Priority 8**: Target off-center → TURN + APPROACH MEDIUM (0.15 m/s)
+9. **Priority 9**: No target → SEARCH (rotate in place 0.4 rad/s)
 
 **Sensors:**
 - RGB Camera: 640×480 @ 30Hz
@@ -155,15 +161,16 @@ This prevents the oscillation problem of percentage-based systems while maximizi
 | Component | Specification |
 |-----------|--------------|
 | **Robot Platform** | TurtleBot3 Burger (Differential Drive) |
-| **Camera** | 640×480 pixels, 30 Hz, 60° FOV |
+| **Camera** | 640×480 pixels, 30 Hz, 90° FOV |
 | **LIDAR** | 360° scan, 5 Hz, 0.12-3.5m range |
 | **Control Rate** | 20 Hz |
 | **Target Detection** | HSV color filtering (Cyan: H=80-100) |
 | **Edge Detection** | 15px safety margin, 2px clip margin |
 | **Distance Control** | Edge-based approach with stability zones |
-| **Approach Speed** | Fast: 0.30 m/s, Medium: 0.15 m/s, Backup: -0.20 m/s |
-| **Turn Control** | Proportional with size-based damping |
-| **Emergency Stop** | <0.30m distance threshold |
+| **Obstacle Avoidance** | Stop: <0.5m, Slow: 0.5-0.8m, Clear: >0.8m |
+| **Approach Speed** | Fast: 0.30 m/s, Medium: 0.15 m/s, Slow: 0.05 m/s, Backup: -0.20 m/s |
+| **Turn Control** | Proportional with size-based damping (gain: 2.5) |
+| **Search Rotation** | 0.4 rad/s when target lost |
 
 ## 🎮 Interactive Commands
 

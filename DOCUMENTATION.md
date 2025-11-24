@@ -8,13 +8,17 @@
 
 This robot operates like a simple autonomous creature:
 
-1.  **Seeing (Vision)**: It uses a front-mounted camera to look for **Cyan/Teal** objects. It ignores everything else (like walls or other robots).
-2.  **Sensing (LIDAR)**: It uses a laser scanner to measure exactly how far away objects are, ensuring it doesn't crash.
+1.  **Seeing (Vision)**: It uses a front-mounted camera (90° FOV) to look for **Cyan/Teal** objects. It ignores everything else (like walls or other robots).
+2.  **Sensing (LIDAR)**: It uses a laser scanner to measure exactly how far away objects are for simple obstacle avoidance.
 3.  **Thinking (Control)**:
+    *   **If obstacle too close (<0.5m)**: STOPS completely (won't hit anything!)
+    *   **If obstacle ahead (0.5-0.8m)**: Slows down to be careful
     *   **If it sees the target**: It turns to center it horizontally while approaching.
     *   **Edge-based distance control**: Instead of using fixed distances, it approaches until the target edges are near the frame border, then stops.
     *   **If target edges clip**: Backs up to keep the full target visible.
-    *   **If it loses the target**: Spins in place to search for it.
+    *   **If it loses the target**: Turns in place to search for it (3-phase search behavior).
+
+**Note:** The robot uses reactive obstacle avoidance - it stops before hitting things but doesn't navigate around obstacles to reach blocked targets.
 
 **Smart Distance Control:**
 The robot uses a two-tier margin system to get as close as possible without the target leaving the camera frame:
@@ -72,19 +76,26 @@ python3 view_camera.py
 ### Control Logic (Priority System)
 The robot makes decisions 20 times per second (20Hz) based on this hierarchy:
 
-1.  **EMERGENCY STOP**: If *any* object is < 0.30m → STOP immediately (collision avoidance).
+1.  **OBSTACLE TOO CLOSE**: If *any* object is < 0.5m → STOP COMPLETELY (prevents collisions).
 2.  **EDGES CLIPPED**: If target edges are within 2px of frame border → BACK UP at -0.20 m/s.
-3.  **TARGET TOO FAR**: If target fills < 20% of FOV → APPROACH FAST at 0.30 m/s.
-4.  **TARGET SAFE & SMALL**: If edges safe (>15px from border) AND fills < 60% FOV → APPROACH MEDIUM at 0.15 m/s.
-5.  **TARGET SAFE & LARGE**: If edges safe AND fills ≥ 60% FOV → HOLD POSITION (stabilize).
-6.  **EDGES IN DANGER ZONE**: If edges between 2-15px from border → HOLD POSITION (prevent oscillation).
-7.  **TARGET OFF-CENTER**: If target not centered → TURN + APPROACH MEDIUM at 0.15 m/s with proportional control + size-based damping.
-8.  **NO TARGET**: If nothing detected → SEARCH by rotating at 0.4 rad/s.
+3.  **OBSTACLE AHEAD**: If object < 0.8m → SLOW DOWN to 0.05 m/s (cautious approach).
+4.  **TARGET TOO FAR**: If target fills < 20% of FOV → APPROACH FAST at 0.30 m/s.
+5.  **TARGET SAFE & SMALL**: If edges safe (>15px from border) AND fills < 60% FOV → APPROACH MEDIUM at 0.15 m/s.
+6.  **TARGET SAFE & LARGE**: If edges safe AND fills ≥ 60% FOV → HOLD POSITION (stabilize).
+7.  **EDGES IN DANGER ZONE**: If edges between 2-15px from border → HOLD POSITION (prevent oscillation).
+8.  **TARGET OFF-CENTER**: If target not centered → TURN + APPROACH MEDIUM at 0.15 m/s with proportional control + size-based damping.
+9.  **NO TARGET**: If nothing detected → SEARCH by rotating in place at 0.4 rad/s.
+
+**Obstacle Avoidance:**
+- **Danger Zone (<0.5m)**: Robot stops completely - won't move forward
+- **Caution Zone (0.5-0.8m)**: Robot slows to 0.05 m/s - very careful approach
+- **Clear Zone (>0.8m)**: Normal operation - approaches at full speed
+- **Reactive Only**: Robot stops before hitting obstacles but doesn't navigate around them (no pathfinding)
 
 **Turn Control:**
-- Proportional control: `angular_vel = -horizontal_error * gain`
+- Proportional control: `angular_vel = -horizontal_error * 2.5` (increased gain for faster centering)
 - Size-based damping: Reduces sensitivity when target is close (prevents over-correction)
-- Turn deadzone: ±0.05 (prevents micro-adjustments)
+- Turn deadzone: ±0.03 (tighter tolerance for better centering)
 
 **Edge Detection System:**
 - **Safety Margin (15px)**: Creates a "keep-out zone" near frame borders
